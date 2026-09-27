@@ -61,6 +61,8 @@ export default function NotificationCard({ vapidPublicKey }: { vapidPublicKey: s
         return;
       }
 
+      // register() idempotent hai — agar effect wali registration fail hui thi to yahan retry ho jaati hai.
+      await navigator.serviceWorker.register("/sw.js");
       const reg = await navigator.serviceWorker.ready;
       const sub =
         (await reg.pushManager.getSubscription()) ??
