@@ -5,6 +5,15 @@ import path from "node:path";
 const DATABASE_URL = process.env.DATABASE_URL || "file:./data/expenses.db";
 
 /**
+ * "C:/x" ya "C:\x" Windows pe absolute hai, lekin Linux ka path.isAbsolute()
+ * use relative samajhta hai aur cwd ke saath jod deta hai (/var/task/C:/...).
+ * Isliye drive letter khud check karte hain.
+ */
+function isAbsolutePath(p: string): boolean {
+  return path.isAbsolute(p) || /^[A-Za-z]:[\\/]/.test(p);
+}
+
+/**
  * Local pe ye seedha SQLite file kholta hai (data/expenses.db).
  * Vercel pe DATABASE_URL ko libsql://... kar do — same SQL, same code,
  * kyunki Vercel ka filesystem ephemeral hai aur .db file wahan survive nahi karti.
@@ -13,11 +22,20 @@ function makeClient(): Client {
   let url = DATABASE_URL;
 
   if (url.startsWith("file:")) {
+    if (process.env.VERCEL) {
+      throw new Error(
+        `DATABASE_URL abhi SQLite file pe set hai ("${url}"), aur Vercel pe ye kaam nahi karega — ` +
+          `wahan ka filesystem ephemeral hai, data har request/deploy pe ud jaata hai. ` +
+          `Vercel → Settings → Environment Variables me DATABASE_URL ko Turso URL (libsql://...) ` +
+          `aur DATABASE_AUTH_TOKEN set karo, phir redeploy. Steps README.md me hain.`,
+      );
+    }
+
     // Relative path ko project root ke against absolute banate hain — Next ka server
     // process cwd hamesha project root nahi hota, aur libsql relative path cwd se
     // resolve karta hai. Absolute rakhne se dono jagah ek hi file khulti hai.
     const target = url.slice("file:".length);
-    const abs = path.isAbsolute(target)
+    const abs = isAbsolutePath(target)
       ? target
       : path.join(path.resolve(/* turbopackIgnore: true */ process.cwd()), target);
 
