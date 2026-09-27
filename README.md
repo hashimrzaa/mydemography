@@ -57,11 +57,15 @@ Notification "Off" karne se us device ki subscription DB se delete ho jaati hai.
 
 ## 3. Vercel pe deploy
 
-### a) Database (Turso)
+### a) Database (Turso) — ye pehle karo
 
 Vercel ka filesystem **ephemeral** hai — wahan `.db` file save nahi rehti, har deploy pe data
 ud jaata hai. Isliye production me wahi SQLite **Turso** pe chalti hai. Code bilkul same rehta
 hai, sirf `DATABASE_URL` badalta hai.
+
+> Build to `file:` URL ke saath bhi pass ho jaayega, par site khulte hi **500** aayega aur
+> Vercel logs me saaf likha hoga ki `DATABASE_URL` Turso pe set karna hai. Ye jaan-boojh kar
+> aisa hai — chupke se local file pe chalne se behtar hai saaf error dena.
 
 ```bash
 npm i -g @tursodatabase/turso-cli     # ya: https://docs.turso.tech/quickstart
@@ -166,5 +170,6 @@ push_subscriptions (endpoint, p256dh, auth, created_at)
 | iPhone pe button kaam nahi karta | Pehle **Add to Home Screen** karo, phir installed app se on karo. |
 | Cron chala par notification nahi aaya | Vercel → Logs me `/api/cron/daily-reminder` dekho. `"sent": 0` matlab koi device subscribed nahi. |
 | Entries gayab ho gayin (local) | DB file OneDrive/Dropbox folder me hai. `DATABASE_URL` sync folder se bahar karo. |
+| Vercel pe site 500 de rahi | Logs dekho — agar likha hai "DATABASE_URL abhi SQLite file pe set hai", to Turso URL + auth token set karke redeploy karo. |
 | Production me data reset ho raha | `DATABASE_URL` abhi `file:` pe hai. Turso URL lagao. |
 | Amount galat currency me | `NEXT_PUBLIC_CURRENCY` / `NEXT_PUBLIC_LOCALE` badlo, phir redeploy. |

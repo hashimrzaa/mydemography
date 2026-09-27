@@ -16,6 +16,11 @@ function isAbsolutePath(p: string): boolean {
  * Vercel pe DATABASE_URL ko libsql://... kar do — same SQL, same code,
  * kyunki Vercel ka filesystem ephemeral hai aur .db file wahan survive nahi karti.
  */
+/** Local .db file chal rahi hai ya remote libSQL/Turso — pragmas sirf file ke liye lagte hain. */
+function usingLocalFile(): boolean {
+  return (process.env.DATABASE_URL || "file:./data/expenses.db").startsWith("file:");
+}
+
 function makeClient(): Client {
   let url = process.env.DATABASE_URL || "file:./data/expenses.db";
 
@@ -61,7 +66,23 @@ function client(): Client {
   return globalForDb.__kharchaClient;
 }
 
+/**
+ * Local SQLite file ke liye durability pragmas.
+ *
+ * Default WAL mode me commit hua data `-wal` file me rehta hai jab tak checkpoint na ho.
+ * Agar process force-kill ho jaaye ya wal file gum ho jaaye to wo entries chali jaati hain
+ * (testing me exactly yahi hua — 4 entries gayab, sqlite_sequence 6 pe rah gaya).
+ * Is app me likhaai bahut kam hai, isliye rollback journal + synchronous FULL behtar hai:
+ * har commit seedha main .db file me, aur koi alag wal file rakhni hi nahi padti.
+ */
+async function harden(c: Client): Promise<void> {
+  await c.execute("PRAGMA journal_mode = DELETE");
+  await c.execute("PRAGMA synchronous = FULL");
+}
+
 async function migrate(c: Client): Promise<void> {
+  if (usingLocalFile()) await harden(c);
+
   await c.batch(
     [
       `CREATE TABLE IF NOT EXISTS expenses (
