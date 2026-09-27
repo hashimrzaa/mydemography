@@ -1,0 +1,10 @@
+# Local-only cheezein kabhi deploy me na jaayein.
+# Production ke env vars Vercel dashboard se aate hain, is folder se nahi.
+.env
+.env.local
+.env*.local
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
