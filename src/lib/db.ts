@@ -2,8 +2,6 @@ import { createClient, type Client } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 
-const DATABASE_URL = process.env.DATABASE_URL || "file:./data/expenses.db";
-
 /**
  * "C:/x" ya "C:\x" Windows pe absolute hai, lekin Linux ka path.isAbsolute()
  * use relative samajhta hai aur cwd ke saath jod deta hai (/var/task/C:/...).
@@ -19,7 +17,7 @@ function isAbsolutePath(p: string): boolean {
  * kyunki Vercel ka filesystem ephemeral hai aur .db file wahan survive nahi karti.
  */
 function makeClient(): Client {
-  let url = DATABASE_URL;
+  let url = process.env.DATABASE_URL || "file:./data/expenses.db";
 
   if (url.startsWith("file:")) {
     if (process.env.VERCEL) {
@@ -52,11 +50,19 @@ const globalForDb = globalThis as unknown as {
   __kharchaInit?: Promise<void>;
 };
 
-const client: Client = globalForDb.__kharchaClient ?? makeClient();
-if (process.env.NODE_ENV !== "production") globalForDb.__kharchaClient = client;
+/**
+ * Client pehli asli query pe banta hai, module load pe nahi.
+ * Ye zaroori hai: `next build` page data collect karte waqt ye module import karta hai,
+ * aur us waqt na DATABASE_URL production wala hota hai na filesystem likhne layak —
+ * module-level connection build ko hi fail kar deta tha.
+ */
+function client(): Client {
+  globalForDb.__kharchaClient ??= makeClient();
+  return globalForDb.__kharchaClient;
+}
 
-async function migrate(): Promise<void> {
-  await client.batch(
+async function migrate(c: Client): Promise<void> {
+  await c.batch(
     [
       `CREATE TABLE IF NOT EXISTS expenses (
          id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,13 +83,20 @@ async function migrate(): Promise<void> {
   );
 }
 
-/** Har API route apne start me ise call karta hai; migration sirf ek baar chalti hai. */
 export function db(): Client {
-  return client;
+  return client();
 }
 
+/** Har query se pehle ise call karo — migration sirf ek baar chalti hai. */
 export async function ready(): Promise<Client> {
-  globalForDb.__kharchaInit ??= migrate();
+  const c = client();
+  if (!globalForDb.__kharchaInit) {
+    // Fail hone pe promise cache mat karo, warna ek temporary error hamesha ke liye chipak jaata hai.
+    globalForDb.__kharchaInit = migrate(c).catch((error) => {
+      globalForDb.__kharchaInit = undefined;
+      throw error;
+    });
+  }
   await globalForDb.__kharchaInit;
-  return client;
+  return c;
 }
