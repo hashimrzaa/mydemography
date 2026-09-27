@@ -11,9 +11,8 @@ const DATABASE_URL = process.env.DATABASE_URL || "file:./data/expenses.db";
  */
 function makeClient(): Client {
   if (DATABASE_URL.startsWith("file:")) {
-    const filePath = DATABASE_URL.slice("file:".length);
-    const dir = path.dirname(path.resolve(process.cwd(), filePath));
-    fs.mkdirSync(dir, { recursive: true });
+    // Relative path cwd ke against resolve hota hai — data/ folder pehle bana lo.
+    fs.mkdirSync(path.dirname(DATABASE_URL.slice("file:".length)), { recursive: true });
   }
   return createClient({
     url: DATABASE_URL,
