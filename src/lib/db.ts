@@ -10,14 +10,22 @@ const DATABASE_URL = process.env.DATABASE_URL || "file:./data/expenses.db";
  * kyunki Vercel ka filesystem ephemeral hai aur .db file wahan survive nahi karti.
  */
 function makeClient(): Client {
-  if (DATABASE_URL.startsWith("file:")) {
-    // Relative path cwd ke against resolve hota hai — data/ folder pehle bana lo.
-    fs.mkdirSync(path.dirname(DATABASE_URL.slice("file:".length)), { recursive: true });
+  let url = DATABASE_URL;
+
+  if (url.startsWith("file:")) {
+    // Relative path ko project root ke against absolute banate hain — Next ka server
+    // process cwd hamesha project root nahi hota, aur libsql relative path cwd se
+    // resolve karta hai. Absolute rakhne se dono jagah ek hi file khulti hai.
+    const target = url.slice("file:".length);
+    const abs = path.isAbsolute(target)
+      ? target
+      : path.join(path.resolve(/* turbopackIgnore: true */ process.cwd()), target);
+
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    url = `file:${abs.replace(/\\/g, "/")}`;
   }
-  return createClient({
-    url: DATABASE_URL,
-    authToken: process.env.DATABASE_AUTH_TOKEN,
-  });
+
+  return createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN });
 }
 
 // Dev me hot-reload har baar naya client na banaye.
