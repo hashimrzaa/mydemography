@@ -21,20 +21,28 @@ export default function NotificationCard({ vapidPublicKey }: { vapidPublicKey: s
   useEffect(() => {
     let cancelled = false;
 
+    const supported =
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window &&
+      Boolean(vapidPublicKey);
+
+    // Pehle sirf browser se pooch kar card dikha do — service worker registration
+    // ka intezaar nahi karte, warna slow/atki hui registration pe card kabhi nahi aata.
+    if (!supported) {
+      setState("unsupported");
+      return;
+    }
+    setState(Notification.permission === "denied" ? "blocked" : "off");
+
+    // Phir background me register karke "on" state confirm kar lo.
     (async () => {
-      if (typeof window === "undefined") return;
-      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !vapidPublicKey) {
-        if (!cancelled) setState("unsupported");
-        return;
-      }
       try {
         const reg = await navigator.serviceWorker.register("/sw.js");
         const sub = await reg.pushManager.getSubscription();
-        if (cancelled) return;
-        if (Notification.permission === "denied") setState("blocked");
-        else setState(sub ? "on" : "off");
-      } catch {
-        if (!cancelled) setState("unsupported");
+        if (!cancelled && sub && Notification.permission === "granted") setState("on");
+      } catch (error) {
+        console.error("service worker register fail", error);
       }
     })();
 
