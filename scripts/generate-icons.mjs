@@ -25,13 +25,33 @@ function chunk(type, data) {
   return Buffer.concat([len, body, crc]);
 }
 
+/** 4x4 supersampling — edges smooth rehte hain, koi library nahi chahiye. */
+function sample(x, y, size, pixel) {
+  const N = 4;
+  let r = 0,
+    g = 0,
+    b = 0,
+    a = 0;
+  for (let sy = 0; sy < N; sy++) {
+    for (let sx = 0; sx < N; sx++) {
+      const p = pixel(x + (sx + 0.5) / N, y + (sy + 0.5) / N, size);
+      r += p[0] * p[3];
+      g += p[1] * p[3];
+      b += p[2] * p[3];
+      a += p[3];
+    }
+  }
+  if (a === 0) return [0, 0, 0, 0];
+  return [Math.round(r / a), Math.round(g / a), Math.round(b / a), Math.round(a / (N * N))];
+}
+
 function png(size, pixel) {
   const raw = Buffer.alloc(size * (size * 4 + 1));
   let o = 0;
   for (let y = 0; y < size; y++) {
     raw[o++] = 0; // filter: none
     for (let x = 0; x < size; x++) {
-      const [r, g, b, a] = pixel(x, y, size);
+      const [r, g, b, a] = sample(x, y, size, pixel);
       raw[o++] = r;
       raw[o++] = g;
       raw[o++] = b;
