@@ -16,13 +16,29 @@ function isAbsolutePath(p: string): boolean {
  * Vercel pe DATABASE_URL ko libsql://... kar do — same SQL, same code,
  * kyunki Vercel ka filesystem ephemeral hai aur .db file wahan survive nahi karti.
  */
+/**
+ * Vercel Marketplace ki Turso integration TURSO_DATABASE_URL / TURSO_AUTH_TOKEN naam se
+ * vars set karti hai — unhe bhi maan lete hain taake rename na karna pade.
+ * Priority: Turso wale vars (sirf agar remote URL hon) > DATABASE_URL > local file.
+ */
+function resolveDatabase(): { url: string; authToken?: string } {
+  const turso = process.env.TURSO_DATABASE_URL;
+  if (turso && !turso.startsWith("file:")) {
+    return { url: turso, authToken: process.env.TURSO_AUTH_TOKEN };
+  }
+  return {
+    url: process.env.DATABASE_URL || "file:./data/expenses.db",
+    authToken: process.env.DATABASE_AUTH_TOKEN,
+  };
+}
+
 /** Local .db file chal rahi hai ya remote libSQL/Turso — pragmas sirf file ke liye lagte hain. */
 function usingLocalFile(): boolean {
-  return (process.env.DATABASE_URL || "file:./data/expenses.db").startsWith("file:");
+  return resolveDatabase().url.startsWith("file:");
 }
 
 function makeClient(): Client {
-  let url = process.env.DATABASE_URL || "file:./data/expenses.db";
+  let { url, authToken } = resolveDatabase();
 
   if (url.startsWith("file:")) {
     if (process.env.VERCEL) {
@@ -30,7 +46,8 @@ function makeClient(): Client {
         `DATABASE_URL abhi SQLite file pe set hai ("${url}"), aur Vercel pe ye kaam nahi karega — ` +
           `wahan ka filesystem ephemeral hai, data har request/deploy pe ud jaata hai. ` +
           `Vercel → Settings → Environment Variables me DATABASE_URL ko Turso URL (libsql://...) ` +
-          `aur DATABASE_AUTH_TOKEN set karo, phir redeploy. Steps README.md me hain.`,
+          `aur DATABASE_AUTH_TOKEN set karo (ya Marketplace se Turso add karo — wo TURSO_DATABASE_URL ` +
+          `khud set kar deta hai), phir redeploy. Steps README.md me hain.`,
       );
     }
 
@@ -46,7 +63,7 @@ function makeClient(): Client {
     url = `file:${abs.replace(/\\/g, "/")}`;
   }
 
-  return createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN });
+  return createClient({ url, authToken });
 }
 
 // Dev me hot-reload har baar naya client na banaye.
